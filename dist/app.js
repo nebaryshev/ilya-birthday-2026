@@ -140,8 +140,8 @@ function renderHome() {
         ${memories.map((memory, index) => `
           <a class="memory-card" data-memory-card="${index + 1}" href="#/video/${index + 1}" style="--card-bg:linear-gradient(145deg, ${memory.colors})">
             <img class="card-photo" data-card-photo="${index + 1}" alt="" hidden>
-            <video class="card-video" data-card-video="${index + 1}" muted playsinline preload="auto" tabindex="-1" aria-hidden="true">
-              <source src="${CLOUD ? cloudObjectUrl(`videos/${pad(index + 1)}`, memory.videoRevision) : `./videos/video-${pad(index + 1)}.mp4`}">
+            <video class="card-video" data-card-video="${index + 1}" muted playsinline preload="${CLOUD ? 'none' : 'auto'}" tabindex="-1" aria-hidden="true">
+              ${CLOUD ? '' : `<source src="./videos/video-${pad(index + 1)}.mp4" type="video/mp4">`}
             </video>
             <div class="card-body">
               <span class="card-number">${pad(index + 1)}</span>
@@ -175,16 +175,26 @@ async function hydrateCardMedia() {
       const memory = getMemories()[id - 1];
       const image = app.querySelector(`[data-card-photo="${id}"]`);
       const video = app.querySelector(`[data-card-video="${id}"]`);
-      if (image) {
+      const loadVideoPreview = () => {
+        if (!video) return;
+        video.hidden = false;
+        video.preload = 'auto';
+        video.src = cloudObjectUrl(`videos/${pad(id)}`, memory.videoRevision);
+        video.load();
+        showFirstVideoFrame(video);
+      };
+      if (memory.photoRevision && image) {
         image.addEventListener('load', () => {
           image.hidden = false;
           if (video) video.hidden = true;
         }, { once: true });
         image.addEventListener('error', () => {
           image.hidden = true;
-          if (video) video.hidden = false;
+          loadVideoPreview();
         }, { once: true });
         image.src = cloudObjectUrl(`covers/${pad(id)}`, memory.photoRevision);
+      } else {
+        loadVideoPreview();
       }
       continue;
     }
