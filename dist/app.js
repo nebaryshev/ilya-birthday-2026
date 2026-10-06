@@ -22,6 +22,8 @@ const DB_STORE = 'videos';
 let objectUrls = [];
 let previousRouteWasVideo = false;
 
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 function pad(number) { return String(number).padStart(2, '0'); }
 
 function getMemories() {
@@ -201,6 +203,7 @@ async function renderVideo(index) {
     </section>`;
 
   app.querySelector('#edit-memory').addEventListener('click', () => requestEditAccess(index));
+  scrollPageToTop();
 }
 
 function arrowButton(direction, target, disabled) {
@@ -227,6 +230,14 @@ function restoreGalleryScroll() {
     window.scrollTo(0, savedScroll);
     requestAnimationFrame(() => { document.documentElement.style.scrollBehavior = ''; });
   }));
+}
+
+function scrollPageToTop() {
+  requestAnimationFrame(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => { document.documentElement.style.scrollBehavior = ''; });
+  });
 }
 
 function requestEditAccess(index) {
@@ -457,6 +468,7 @@ function renderNotFound() {
   header.innerHTML = `<button class="header-back" type="button" id="header-back">← Назад</button>`;
   header.querySelector('#header-back').addEventListener('click', returnToGallery);
   app.innerHTML = `<section class="video-page"><div class="video-shell"><h1>Страница не найдена</h1></div></section>`;
+  scrollPageToTop();
 }
 
 function route() {
@@ -464,7 +476,6 @@ function route() {
   if (match) {
     previousRouteWasVideo = true;
     renderVideo(Number(match[1]) - 1);
-    window.scrollTo({ top: 0, behavior: 'auto' });
   } else {
     renderHome();
     if (previousRouteWasVideo) restoreGalleryScroll();
