@@ -93,6 +93,7 @@ function clearObjectUrls() {
 
 function renderHome() {
   clearObjectUrls();
+  document.body.classList.remove('video-view');
   header.innerHTML = '';
   header.classList.add('is-empty');
   const memories = getMemories();
@@ -173,6 +174,7 @@ async function renderVideo(index) {
   const id = index + 1;
   const localVideo = await getLocalVideo(id).catch(() => null);
   const source = localVideo ? makeObjectUrl(localVideo) : `./videos/video-${pad(id)}.mp4`;
+  document.body.classList.add('video-view');
   header.classList.remove('is-empty');
   header.innerHTML = `<button class="header-back" type="button" id="header-back">← Назад</button>`;
   header.querySelector('#header-back').addEventListener('click', returnToGallery);
@@ -451,6 +453,7 @@ function escapeHtml(value) {
 function escapeAttribute(value) { return escapeHtml(value); }
 
 function renderNotFound() {
+  document.body.classList.add('video-view');
   header.innerHTML = `<button class="header-back" type="button" id="header-back">← Назад</button>`;
   header.querySelector('#header-back').addEventListener('click', returnToGallery);
   app.innerHTML = `<section class="video-page"><div class="video-shell"><h1>Страница не найдена</h1></div></section>`;
