@@ -234,7 +234,7 @@ async function renderVideo(index) {
         <div class="player-stage">
           ${arrowButton('previous', id - 1, id === 1)}
           <div class="player-wrap">
-            <video id="memory-video" controls playsinline preload="metadata" src="${source}">Ваш браузер не поддерживает воспроизведение видео.</video>
+            <video id="memory-video" controls playsinline preload="auto" src="${source}">Ваш браузер не поддерживает воспроизведение видео.</video>
           </div>
           ${arrowButton('next', id + 1, id === 10)}
         </div>
@@ -243,7 +243,23 @@ async function renderVideo(index) {
     </section>`;
 
   app.querySelector('#edit-memory').addEventListener('click', () => requestEditAccess(index));
+  hydratePlayerPreview(id, memory);
   scrollPageToTop();
+}
+
+async function hydratePlayerPreview(id, memory) {
+  const video = app.querySelector('#memory-video');
+  if (!video) return;
+  showFirstVideoFrame(video);
+  if (CLOUD) {
+    const cover = cloudObjectUrl(`covers/${pad(id)}`, memory.photoRevision);
+    const probe = new Image();
+    probe.addEventListener('load', () => { video.poster = cover; }, { once: true });
+    probe.src = cover;
+    return;
+  }
+  const photo = await getLocalPhoto(id).catch(() => null);
+  if (photo && video.isConnected) video.poster = makeObjectUrl(photo);
 }
 
 function arrowButton(direction, target, disabled) {
