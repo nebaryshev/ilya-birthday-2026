@@ -19,16 +19,37 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_PHOTO_SIZE = 20 * 1024 * 1024;
 const DB_NAME = 'ilya-birthday-memories';
 const DB_STORE = 'videos';
+const CLOUD = window.ILYA_UPLOAD_CONFIG || null;
 let objectUrls = [];
 let previousRouteWasVideo = false;
+let cloudManifest = null;
 
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 function pad(number) { return String(number).padStart(2, '0'); }
 
 function getMemories() {
+  if (cloudManifest?.memories) {
+    return defaultMemories.map((memory, index) => ({ ...memory, ...(cloudManifest.memories[index] || {}) }));
+  }
   const saved = JSON.parse(localStorage.getItem('ilya-memory-copy') || '{}');
   return defaultMemories.map((memory, index) => ({ ...memory, ...(saved[index + 1] || {}) }));
+}
+
+function cloudObjectUrl(key, revision = '') {
+  if (!CLOUD) return '';
+  const suffix = revision ? `?v=${encodeURIComponent(revision)}` : `?v=${Date.now()}`;
+  return `${CLOUD.publicBase}/${key}${suffix}`;
+}
+
+async function loadCloudManifest() {
+  if (!CLOUD) return;
+  try {
+    const response = await fetch(cloudObjectUrl('data/memories.json'), { cache: 'no-store' });
+    if (response.ok) cloudManifest = await response.json();
+  } catch {
+    // The manifest does not exist until the first edit; defaults remain available.
+  }
 }
 
 function saveMemoryCopy(index, title, caption) {
@@ -120,7 +141,7 @@ function renderHome() {
           <a class="memory-card" data-memory-card="${index + 1}" href="#/video/${index + 1}" style="--card-bg:linear-gradient(145deg, ${memory.colors})">
             <img class="card-photo" data-card-photo="${index + 1}" alt="" hidden>
             <video class="card-video" data-card-video="${index + 1}" muted playsinline preload="auto" tabindex="-1" aria-hidden="true">
-              <source src="./videos/video-${pad(index + 1)}.mp4" type="video/mp4">
+              <source src="${CLOUD ? cloudObjectUrl(`videos/${pad(index + 1)}`, memory.videoRevision) : `./videos/video-${pad(index + 1)}.mp4`}">
             </video>
             <div class="card-body">
               <span class="card-number">${pad(index + 1)}</span>
@@ -150,6 +171,23 @@ function showFirstVideoFrame(video) {
 
 async function hydrateCardMedia() {
   for (let id = 1; id <= 10; id += 1) {
+    if (CLOUD) {
+      const memory = getMemories()[id - 1];
+      const image = app.querySelector(`[data-card-photo="${id}"]`);
+      const video = app.querySelector(`[data-card-video="${id}"]`);
+      if (image) {
+        image.addEventListener('load', () => {
+          image.hidden = false;
+          if (video) video.hidden = true;
+        }, { once: true });
+        image.addEventListener('error', () => {
+          image.hidden = true;
+          if (video) video.hidden = false;
+        }, { once: true });
+        image.src = cloudObjectUrl(`covers/${pad(id)}`, memory.photoRevision);
+      }
+      continue;
+    }
     const [photo, videoBlob] = await Promise.all([
       getLocalPhoto(id).catch(() => null),
       getLocalVideo(id).catch(() => null),
@@ -174,8 +212,10 @@ async function renderVideo(index) {
   const memory = memories[index];
   if (!memory) return renderNotFound();
   const id = index + 1;
-  const localVideo = await getLocalVideo(id).catch(() => null);
-  const source = localVideo ? makeObjectUrl(localVideo) : `./videos/video-${pad(id)}.mp4`;
+  const localVideo = CLOUD ? null : await getLocalVideo(id).catch(() => null);
+  const source = CLOUD
+    ? cloudObjectUrl(`videos/${pad(id)}`, memory.videoRevision)
+    : (localVideo ? makeObjectUrl(localVideo) : `./videos/video-${pad(id)}.mp4`);
   document.body.classList.add('video-view');
   header.classList.remove('is-empty');
   header.innerHTML = `<button class="header-back" type="button" id="header-back">← Назад</button>`;
@@ -363,38 +403,91 @@ function enterEditMode(index) {
     if (!newTitle) return showToast('Заголовок не может быть пустым');
     if (file && !validateVideoFile(file)) return;
     if (photo && !validatePhotoFile(photo)) return;
-    const progress = file ? showUploadProgress() : null;
-    let progressTimer;
-    if (progress) {
-      let amount = 12;
-      progress.set(amount);
-      progressTimer = window.setInterval(() => {
-        amount = Math.min(amount + Math.max(1, Math.round((88 - amount) * .14)), 88);
-        progress.set(amount);
-      }, 120);
-    }
+    const progress = (file || photo || CLOUD) ? showUploadProgress() : null;
     try {
-      await Promise.all([
-        file ? saveLocalVideo(index + 1, file) : Promise.resolve(),
-        photo ? saveLocalPhoto(index + 1, photo) : Promise.resolve(),
-        file ? new Promise((resolve) => setTimeout(resolve, 650)) : Promise.resolve(),
-      ]);
-      saveMemoryCopy(index, newTitle, newCaption);
+      if (CLOUD) {
+        await saveCloudMemory(index, newTitle, newCaption, file, photo, (value) => progress?.set(value));
+      } else {
+        await Promise.all([
+          file ? saveLocalVideo(index + 1, file) : Promise.resolve(),
+          photo ? saveLocalPhoto(index + 1, photo) : Promise.resolve(),
+        ]);
+        saveMemoryCopy(index, newTitle, newCaption);
+      }
       if (progress) {
-        clearInterval(progressTimer);
         progress.set(100);
-        await new Promise((resolve) => setTimeout(resolve, 420));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         progress.close();
       }
       await renderVideo(index);
       showToast('Изменения сохранены');
     } catch {
-      clearInterval(progressTimer);
       progress?.close();
-      showToast('Не удалось сохранить видео. Проверьте свободное место');
+      showToast('Не удалось сохранить изменения. Попробуйте ещё раз');
     }
   });
   app.querySelector('#edit-title-input').focus();
+}
+
+function uploadCloudObject(key, file, onProgress) {
+  const upload = CLOUD?.uploads?.[key];
+  if (!upload) return Promise.reject(new Error('Разрешение на загрузку отсутствует или истекло'));
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    Object.entries(upload.fields).forEach(([name, value]) => form.append(name, value));
+    form.append('Content-Type', file.type);
+    form.append('file', file);
+    const request = new XMLHttpRequest();
+    request.open('POST', upload.url);
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    });
+    request.addEventListener('load', () => {
+      if (request.status >= 200 && request.status < 300) resolve();
+      else reject(new Error(`Object Storage returned ${request.status}`));
+    });
+    request.addEventListener('error', () => reject(new Error('Network upload failed')));
+    request.send(form);
+  });
+}
+
+async function saveCloudMemory(index, title, caption, video, photo, setProgress) {
+  const id = index + 1;
+  const memories = getMemories().map((memory) => ({ ...memory }));
+  const uploads = [
+    video && { key: `videos/${pad(id)}`, file: video },
+    photo && { key: `covers/${pad(id)}`, file: photo },
+  ].filter(Boolean);
+  const totalBytes = uploads.reduce((sum, item) => sum + item.file.size, 0) || 1;
+  let completedBytes = 0;
+  for (const item of uploads) {
+    await uploadCloudObject(item.key, item.file, (part) => {
+      setProgress(Math.round(((completedBytes + item.file.size * part) / totalBytes) * 90));
+    });
+    completedBytes += item.file.size;
+  }
+  const revision = Date.now();
+  memories[index] = {
+    ...memories[index],
+    title,
+    caption,
+    ...(video ? { videoRevision: revision } : {}),
+    ...(photo ? { photoRevision: revision } : {}),
+  };
+  const manifest = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    memories: memories.map(({ title: memoryTitle, caption: memoryCaption, videoRevision, photoRevision }) => ({
+      title: memoryTitle,
+      caption: memoryCaption,
+      ...(videoRevision ? { videoRevision } : {}),
+      ...(photoRevision ? { photoRevision } : {}),
+    })),
+  };
+  const manifestFile = new File([JSON.stringify(manifest)], 'memories.json', { type: 'application/json' });
+  setProgress(94);
+  await uploadCloudObject('data/memories.json', manifestFile);
+  cloudManifest = manifest;
 }
 
 function validatePhotoFile(file) {
@@ -414,7 +507,7 @@ function showUploadProgress() {
     <div class="modal-backdrop" role="presentation">
       <section class="upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
         <span class="modal-leaf" aria-hidden="true">🍂</span>
-        <h2 id="upload-title">Сохраняем видео</h2>
+        <h2 id="upload-title">Сохраняем воспоминание</h2>
         <p>Ещё немного — воспоминание почти готово</p>
         <div class="upload-progress" role="progressbar" aria-label="Загрузка видео" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <span></span>
@@ -502,4 +595,4 @@ function createLeaves() {
 
 window.addEventListener('hashchange', route);
 createLeaves();
-route();
+loadCloudManifest().finally(route);
