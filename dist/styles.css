@@ -365,12 +365,32 @@ video { display: block; width: 100%; aspect-ratio: 16/9; background: #150e0a; }
 .date-inputs span { color: #a16f48; font-size: 1.6rem; }
 .modal-submit { width: 100%; margin-top: 24px; }
 .modal-submit.is-shaking { animation: button-shake .42s ease; }
+.modal-submit.is-success {
+  color: #fffaf0;
+  background: linear-gradient(135deg, #557548, #8d9a50);
+  box-shadow: 0 13px 30px rgba(65, 99, 54, .28);
+  animation: button-success .72s ease both;
+}
+.date-form.is-success .date-inputs input,
+#date-form.is-success .date-inputs input {
+  border-color: #8d9a50;
+  color: #48603e;
+  background: #f7f4df;
+  box-shadow: 0 0 0 4px rgba(110, 139, 79, .12);
+  transition: border-color .25s ease, color .25s ease, background .25s ease, box-shadow .25s ease;
+}
 @keyframes button-shake {
   0%, 100% { transform: translateX(0); }
   20% { transform: translateX(-9px); }
   40% { transform: translateX(8px); }
   60% { transform: translateX(-6px); }
   80% { transform: translateX(4px); }
+}
+@keyframes button-success {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.035); }
+  65% { transform: scale(.992); }
+  100% { transform: scale(1); }
 }
 .toast {
   position: fixed;

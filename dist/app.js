@@ -346,8 +346,15 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
     const values = inputs.map((input) => input.value);
     if (values.join('-') === expected.join('-')) {
       finished = true;
-      close();
-      onSuccess();
+      inputs.forEach((input) => { input.disabled = true; });
+      form.classList.add('is-success');
+      submitButton.disabled = true;
+      submitButton.textContent = 'Всё верно ✓';
+      submitButton.classList.add('is-success');
+      window.setTimeout(() => {
+        close();
+        onSuccess();
+      }, 850);
       return;
     }
     inputs.forEach((input) => { input.value = ''; });
