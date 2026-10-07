@@ -120,12 +120,12 @@ function renderHome() {
   header.innerHTML = '';
   header.classList.add('is-empty');
   const memories = getMemories();
-  document.title = 'Илья, с 10-летием!';
+  document.title = 'Илья, с юбилеем!';
   app.innerHTML = `
     <section class="hero">
       <div class="hero-content">
         <p class="eyebrow">8 октября · твой особенный день</p>
-        <h1>Илья,<br>с днём рождения!</h1>
+        <h1>Илья,<br>с юбилеем!</h1>
         <span class="hero-age">Тебе уже 10!</span>
         <p class="hero-copy">Десять фотографий. Десять тёплых историй. И целая жизнь удивительных приключений впереди</p>
         <a class="primary-button" href="#stories">Смотреть воспоминания ↓</a>
@@ -230,7 +230,7 @@ async function renderVideo(index) {
   header.classList.remove('is-empty');
   header.innerHTML = `<button class="header-back" type="button" id="header-back">← Назад</button>`;
   header.querySelector('#header-back').addEventListener('click', returnToGallery);
-  document.title = `${memory.title} — Илье 10 лет`;
+  document.title = memory.title;
   app.innerHTML = `
     <section class="video-page">
       <div class="video-shell">
@@ -308,7 +308,7 @@ function scrollPageToTop() {
 
 function requestEditAccess(index) {
   openDateModal({
-    title: 'Режим редактирования',
+    title: 'Чтобы редактировать воспоминание',
     prompt: 'Введите день рождения мамы Ильи',
     expected: ['09', '09', '1988'],
     onSuccess: () => enterEditMode(index),
@@ -326,9 +326,9 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
         <form id="date-form" novalidate>
           <div class="date-inputs" aria-label="Дата рождения">
             <input inputmode="numeric" maxlength="2" aria-label="День" placeholder="ДД" autocomplete="off">
-            <span>.</span>
+            <span>⋅</span>
             <input inputmode="numeric" maxlength="2" aria-label="Месяц" placeholder="ММ" autocomplete="off">
-            <span>.</span>
+            <span>⋅</span>
             <input inputmode="numeric" maxlength="4" aria-label="Год" placeholder="ГГГГ" autocomplete="off">
           </div>
           <button class="secondary-button modal-submit" type="submit">Подтвердить</button>
@@ -341,15 +341,27 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
   const submitButton = form.querySelector('.modal-submit');
   let finished = false;
   const close = () => { modalRoot.innerHTML = ''; };
-  const checkDate = () => {
-    if (finished || inputs.some((input) => input.value.length !== input.maxLength)) return;
+  const showDateError = (clearInputs) => {
+    if (clearInputs) inputs.forEach((input) => { input.value = ''; });
+    submitButton.classList.remove('is-shaking');
+    void submitButton.offsetWidth;
+    submitButton.classList.add('is-shaking');
+    (inputs.find((input) => input.value.length !== input.maxLength) || inputs[0]).focus();
+  };
+  const checkDate = (force = false) => {
+    if (finished) return;
+    const isComplete = inputs.every((input) => input.value.length === input.maxLength);
+    if (!isComplete) {
+      if (force) showDateError(false);
+      return;
+    }
     const values = inputs.map((input) => input.value);
     if (values.join('-') === expected.join('-')) {
       finished = true;
       inputs.forEach((input) => { input.disabled = true; });
       form.classList.add('is-success');
       submitButton.disabled = true;
-      submitButton.textContent = 'Всё верно ✓';
+      submitButton.textContent = 'Верно!';
       submitButton.classList.add('is-success');
       window.setTimeout(() => {
         close();
@@ -357,11 +369,7 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
       }, 850);
       return;
     }
-    inputs.forEach((input) => { input.value = ''; });
-    submitButton.classList.remove('is-shaking');
-    void submitButton.offsetWidth;
-    submitButton.classList.add('is-shaking');
-    inputs[0].focus();
+    showDateError(true);
   };
   modalRoot.querySelector('.modal-close').addEventListener('click', close);
   backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
@@ -369,12 +377,12 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
     input.addEventListener('input', () => {
       input.value = input.value.replace(/\D/g, '');
       if (input.value.length === input.maxLength && inputs[index + 1]) inputs[index + 1].focus();
-      checkDate();
+      checkDate(false);
     });
   });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    checkDate();
+    checkDate(true);
   });
   inputs[0].focus();
 }

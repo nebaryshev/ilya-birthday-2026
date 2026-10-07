@@ -345,7 +345,13 @@ video { display: block; width: 100%; aspect-ratio: 16/9; background: #150e0a; }
 .upload-progress { height: 12px; overflow: hidden; border-radius: 999px; background: #ead7b6; }
 .upload-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a34827, #e4a43c); transition: width .24s ease; }
 .upload-percent { display: block; margin-top: 12px; color: var(--rust); }
-.date-modal h2 { margin: 8px 0 12px; font-size: clamp(2rem, 6vw, 3rem); letter-spacing: -.035em; }
+.date-modal h2 {
+  max-width: 420px;
+  margin: 8px auto 12px;
+  font-size: clamp(1.65rem, 5vw, 2.35rem);
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
 .date-modal > p { margin: 0 0 25px; color: #704531; }
 .modal-leaf { font-size: 2.2rem; }
 .modal-close { position: absolute; top: 13px; right: 15px; width: 38px; height: 38px; border: 0; border-radius: 50%; color: #78402b; background: rgba(141,65,31,.08); cursor: pointer; font-size: 1.65rem; }
