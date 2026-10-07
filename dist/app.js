@@ -352,7 +352,7 @@ function openDateModal({ title, prompt, expected, onSuccess }) {
     if (finished) return;
     const isComplete = inputs.every((input) => input.value.length === input.maxLength);
     if (!isComplete) {
-      if (force) showDateError(false);
+      if (force) showDateError(true);
       return;
     }
     const values = inputs.map((input) => input.value);
